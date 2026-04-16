@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Styling
+# Styling für die Buttons und Metrics
 st.markdown("""
     <style>
     .stButton>button {
@@ -19,11 +19,14 @@ st.markdown("""
         background-color: #ff4b4b;
         color: white;
     }
+    [data-testid="stMetricValue"] {
+        font-size: 1.8rem;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🍻 Team Tasting Cloud")
-st.write("Echtzeit-Bewertungen in der Cloud")
+st.write("Echtzeit-Bewertungen & Bestenliste")
 st.markdown("---")
 
 # 2. Sidebar für das User-Profil
@@ -33,7 +36,7 @@ with st.sidebar:
     st.divider()
     st.info("Gib deinen Namen ein, um eigene Bewertungen abzugeben.")
 
-# 3. Hauptbereich mit zwei Spalten (Immer definiert)
+# 3. Hauptbereich mit zwei Spalten
 col1, col2 = st.columns([1, 2], gap="large")
 
 # --- LINKE SPALTE: EINGABE ---
@@ -79,20 +82,20 @@ with col1:
                 else:
                     st.warning("Bitte Getränkenamen angeben.")
     else:
-        st.warning("👈 Bitte gib links in der Sidebar deinen Namen ein, um eine Bewertung abzugeben.")
-        st.info("Die Live-Statistik rechts ist für alle Besucher öffentlich einsehbar.")
+        st.warning("👈 Bitte gib links deinen Namen ein.")
+        st.info("Die Live-Statistik rechts ist für alle Besucher öffentlich.")
 
-# --- RECHTE SPALTE: AUSWERTUNG (IMMER SICHTBAR) ---
+# --- RECHTE SPALTE: AUSWERTUNG ---
 with col2:
-    st.subheader("Live-Auswertung")
+    st.subheader("🏆 Tasting Highlights")
     raw_data = load_data()
     
     if raw_data:
+        # Daten in ein sauberes Format bringen
         processed_list = []
         for row in raw_data:
             profiles_data = row.get("Profiles")
             tester_name = profiles_data.get("name", "Unbekannt") if profiles_data else "Unbekannt"
-            
             processed_list.append({
                 "Tester": tester_name,
                 "Getränk": row.get("drink_aName", "Unbenannt"),
@@ -101,21 +104,47 @@ with col2:
             })
         
         df = pd.DataFrame(processed_list)
+
+        # 1. Top 3 Metriken (Hall of Fame)
+        if not df.empty:
+            avg_df = df.groupby("Getränk")["Punkte"].mean().sort_values(ascending=False).reset_index()
+            
+            h_col1, h_col2, h_col3 = st.columns(3)
+            with h_col1:
+                if len(avg_df) >= 1:
+                    st.metric("🥇 Platz 1", avg_df.iloc[0]["Getränk"], f"{avg_df.iloc[0]['Punkte']:.1f} Pkt")
+            with h_col2:
+                if len(avg_df) >= 2:
+                    st.metric("🥈 Platz 2", avg_df.iloc[1]["Getränk"], f"{avg_df.iloc[1]['Punkte']:.1f} Pkt")
+            with h_col3:
+                if len(avg_df) >= 3:
+                    st.metric("🥉 Platz 3", avg_df.iloc[2]["Getränk"], f"{avg_df.iloc[2]['Punkte']:.1f} Pkt")
         
-        tab1, tab2 = st.tabs(["📊 Statistik", "📋 Alle Einträge"])
+        st.divider()
+
+        # 2. Tabs für Details
+        tab1, tab2, tab3 = st.tabs(["📊 Charts", "🎖️ Leaderboard", "📋 Alle Einträge"])
         
         with tab1:
-            st.write("### Durchschnittsbewertung")
+            st.write("### Durchschnitt pro Getränk")
             if not df.empty:
-                avg_ratings = df.groupby("Getränk")["Punkte"].mean().sort_values(ascending=False)
-                st.bar_chart(avg_ratings)
-            else:
-                st.write("Noch keine Daten vorhanden.")
+                chart_data = df.groupby("Getränk")["Punkte"].mean().sort_values(ascending=False)
+                st.bar_chart(chart_data)
             
         with tab2:
+            st.write("### Wer testet am fleißigsten?")
+            leaderboard = df["Tester"].value_counts().reset_index()
+            leaderboard.columns = ["Name", "Anzahl Tests"]
+            # Wir zeigen eine schicke Tabelle mit Index (Platzierung)
+            leaderboard.index += 1
+            st.table(leaderboard)
+                
+        with tab3:
+            # Sortiert nach den neuesten Einträgen (dafür wäre ein Timestamp in DB gut)
             st.dataframe(df, use_container_width=True, hide_index=True)
+            
     else:
-        st.info("Noch keine Einträge in der Datenbank gefunden.")
+        st.info("Noch keine Einträge vorhanden. Sei der Erste!")
 
 st.divider()
 st.caption("Besser als Fab4Minds Frontend")

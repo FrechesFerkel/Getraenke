@@ -17,7 +17,6 @@ def load_data():
         return []
 
 def get_unique_drinks():
-    # 
     try:
         response = supabase.table("Ratings").select("drink_aName").execute()
         names = list(set([item['drink_aName'] for item in response.data if item['drink_aName']]))
@@ -27,7 +26,6 @@ def get_unique_drinks():
         return []
 
 def get_or_create_user_id(user_name):
-    """Prüft ob User existiert und gibt die ID zurück, sonst neu anlegen."""
     # Suche User mit diesem Namen
     res = supabase.table("Profiles").select("id").eq("name", user_name).execute()
     
