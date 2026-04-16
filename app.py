@@ -40,8 +40,14 @@ with col1:
             
             if st.form_submit_button("Speichern 🚀"):
                 if final_drink:
-                    image_url = upload_image(uploaded_file) if uploaded_file else None
-                    save_entry(user, final_drink, rating, comment, image_url=image_url)
+                    img_url = None
+                    if uploaded_file:
+                        try:
+                            img_url = upload_image(uploaded_file)
+                        except Exception as e:
+                            st.error(f"Upload-Fehler: {e}")
+                    
+                    save_entry(user, final_drink, rating, comment, image_url=img_url)
                     st.success("Gespeichert!")
                     st.balloons()
                     st.rerun()
@@ -55,22 +61,31 @@ with col2:
     raw_data = load_data()
     
     if raw_data:
-        processed_list = [{
-            "Tester": row.get("Profiles", {}).get("name", "Unbekannt"),
-            "Getränk": row.get("drink_aName", "Unbenannt"),
-            "Punkte": row.get("rating", 0),
-            "Fazit": row.get("remark", ""),
-            "Bild": row.get("image_url", None)
-        } for row in raw_data]
+        processed_list = []
+        for row in raw_data:
+            prof = row.get("Profiles")
+            # Sicherstellen, dass wir einen String für das Bild haben
+            img_val = row.get("image_url")
+            if img_val and not isinstance(img_val, str):
+                img_val = getattr(img_val, 'public_url', None)
+
+            processed_list.append({
+                "Tester": prof.get("name", "Unbekannt") if isinstance(prof, dict) else "Unbekannt",
+                "Getränk": row.get("drink_aName", "Unbenannt"),
+                "Punkte": row.get("rating", 0),
+                "Fazit": row.get("remark", ""),
+                "Bild": img_val
+            })
         
         df = pd.DataFrame(processed_list)
 
-        # Metriken
-        avg_df = df.groupby("Getränk")["Punkte"].mean().sort_values(ascending=False).reset_index()
-        m1, m2, m3 = st.columns(3)
-        if len(avg_df) > 0: m1.metric("🥇 1.", avg_df.iloc[0]["Getränk"], f"{avg_df.iloc[0]['Punkte']:.1f}")
-        if len(avg_df) > 1: m2.metric("🥈 2.", avg_df.iloc[1]["Getränk"], f"{avg_df.iloc[1]['Punkte']:.1f}")
-        if len(avg_df) > 2: m3.metric("🥉 3.", avg_df.iloc[2]["Getränk"], f"{avg_df.iloc[2]['Punkte']:.1f}")
+        # Metriken (Top 3)
+        if not df.empty:
+            avg_df = df.groupby("Getränk")["Punkte"].mean().sort_values(ascending=False).reset_index()
+            m1, m2, m3 = st.columns(3)
+            if len(avg_df) > 0: m1.metric("🥇 1.", avg_df.iloc[0]["Getränk"], f"{avg_df.iloc[0]['Punkte']:.1f}")
+            if len(avg_df) > 1: m2.metric("🥈 2.", avg_df.iloc[1]["Getränk"], f"{avg_df.iloc[1]['Punkte']:.1f}")
+            if len(avg_df) > 2: m3.metric("🥉 3.", avg_df.iloc[2]["Getränk"], f"{avg_df.iloc[2]['Punkte']:.1f}")
         
         st.divider()
         t1, t2, t3 = st.tabs(["📊 Charts", "🎖️ Leaderboard", "📸 Fotowall"])
@@ -81,11 +96,18 @@ with col2:
             lb.columns = ["Name", "Tests"]; lb.index += 1
             st.table(lb)
         with t3:
-            for _, r in df.iloc[::-1].iterrows(): # iloc[::-1] dreht die Liste um, damit das Neueste oben ist (nach ID)
+            # Neueste zuerst
+            for r in processed_list:
                 c_img, c_txt = st.columns([1, 2])
-                if r["Bild"]: c_img.image(r["Bild"])
-                c_txt.write(f"**{r['Tester']}** testete **{r['Getränk']}** ({r['Punkte']}/10)")
-                c_txt.info(r["Fazit"])
+                if r["Bild"] and isinstance(r["Bild"], str):
+                    c_img.image(r["Bild"], use_container_width=True)
+                else:
+                    c_img.gray_image = True # Platzhalter-Optik
+                    c_img.write(" Kein Foto")
+                
+                c_txt.write(f"**{r['Tester']}** testete **{r['Getränk']}**")
+                c_txt.write(f"Punkte: {r['Punkte']}/10")
+                if r["Fazit"]: c_txt.info(r["Fazit"])
                 st.divider()
     else:
         st.info("Noch keine Daten.")
