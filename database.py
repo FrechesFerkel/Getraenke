@@ -1,48 +1,64 @@
 import os
 from supabase import create_client, Client
-from dotenv import load_dotenv
+import pandas as pd
 
-load_dotenv()
-
+# Verbindung zu Supabase
 url = os.environ.get("SUPABASE_URL")
 key = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
-def load_data():
-    try:
-        response = supabase.table("Ratings").select("*, Profiles(name)").execute()
-        return response.data
-    except Exception as e:
-        print(f"Fehler beim Laden: {e}")
-        return []
-
-def get_unique_drinks():
-    try:
-        response = supabase.table("Ratings").select("drink_aName").execute()
-        names = list(set([item['drink_aName'] for item in response.data if item['drink_aName']]))
-        return sorted(names)
-    except Exception as e:
-        print(f"Fehler bei Getränkeliste: {e}")
-        return []
-
-def get_or_create_user_id(user_name):
-    # Suche User mit diesem Namen
-    res = supabase.table("Profiles").select("id").eq("name", user_name).execute()
+def get_user_id(name):
+    """Sucht User (case-insensitive) oder legt ihn neu an."""
+    clean_name = name.strip()
+    # Suche mit ilike (ignoriert Groß-/Kleinschreibung)
+    result = supabase.table("Profiles").select("id").ilike("name", clean_name).execute()
     
-    if res.data:
-        return res.data[0]["id"]
+    if result.data:
+        return result.data[0]["id"]
     else:
-        # User neu anlegen
-        new_user = supabase.table("Profiles").insert({"name": user_name}).execute()
+        # Neu anlegen, falls nicht gefunden
+        new_user = supabase.table("Profiles").insert({"name": clean_name}).execute()
         return new_user.data[0]["id"]
 
-def save_entry(user_name, drink, rating, comment):
-    u_id = get_or_create_user_id(user_name)
+def get_unique_drinks():
+    """Holt alle bereits existierenden Getränkenamen für das Dropdown."""
+    result = supabase.table("Ratings").select("drink_aName").execute()
+    if result.data:
+        drinks = [row["drink_aName"] for row in result.data]
+        return sorted(list(set(drinks)))
+    return []
+
+def upload_image(file):
+    """Lädt ein Bild in den Supabase Storage 'tasting-pics' hoch."""
+    # Zeitstempel für eindeutigen Dateinamen
+    timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+    file_name = f"pic_{timestamp}_{file.name}"
     
+    # Upload
+    supabase.storage.from_("tasting-pics").upload(
+        path=file_name,
+        file=file.getvalue(),
+        file_options={"content-type": "image/jpeg"}
+    )
+    
+    # URL abrufen
+    url_res = supabase.storage.from_("tasting-pics").get_public_url(file_name)
+    return url_res
+
+def save_entry(user_name, drink_name, rating, remark, image_url=None):
+    """Speichert eine neue Bewertung inkl. optionaler Bild-URL."""
+    user_id = get_user_id(user_name)
     data = {
-        "user_id": u_id,
-        "drink_aName": drink,
+        "user_id": user_id,
+        "drink_aName": drink_name,
         "rating": rating,
-        "remark": comment
+        "remark": remark,
+        "image_url": image_url
     }
     supabase.table("Ratings").insert(data).execute()
+
+def load_data():
+    """Lädt alle Bewertungen für die Auswertung."""
+    # Holt Ratings und verknüpft sie mit der Profiles Tabelle
+    result = supabase.table("Ratings").select("*, Profiles(name)").order("created_at", desc=True).execute()
+    return result.data
