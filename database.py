@@ -9,10 +9,7 @@ key = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
 def load_data():
-    """Holt Ratings und joint automatisch den Namen aus Profiles."""
     try:
-        # Der Trick: Wir sagen Supabase, er soll die Daten aus 'Profiles' direkt mitliefern
-        # Das entspricht einem SQL JOIN
         response = supabase.table("Ratings").select("*, Profiles(name)").execute()
         return response.data
     except Exception as e:
@@ -20,7 +17,7 @@ def load_data():
         return []
 
 def get_unique_drinks():
-    """Holt alle einzigartigen Getränkenamen."""
+    # 
     try:
         response = supabase.table("Ratings").select("drink_aName").execute()
         names = list(set([item['drink_aName'] for item in response.data if item['drink_aName']]))
@@ -42,11 +39,8 @@ def get_or_create_user_id(user_name):
         return new_user.data[0]["id"]
 
 def save_entry(user_name, drink, rating, comment):
-    """Speichert den Eintrag unter Verwendung der Foreign Key Relation."""
-    # 1. User ID besorgen
     u_id = get_or_create_user_id(user_name)
     
-    # 2. In Ratings speichern (Spaltennamen exakt wie in deinem Screenshot!)
     data = {
         "user_id": u_id,
         "drink_aName": drink,
