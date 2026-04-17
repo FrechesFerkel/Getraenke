@@ -65,8 +65,6 @@ def load_data():
 def delete_last_entry(user_name):
     """Löscht den aktuellsten Eintrag eines bestimmten Users."""
     user_id = get_user_id(user_name)
-    
-    # Holen des neuesten Eintrags dieses Users (nach ID sortiert)
     result = supabase.table("Ratings")\
         .select("id")\
         .eq("user_id", user_id)\
