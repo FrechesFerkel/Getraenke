@@ -141,6 +141,7 @@ with col2:
         m1, m2, m3 = st.columns(3)
         if len(avg_drink) > 0: m1.metric("🥇 Platz 1", avg_drink.iloc[0]["Getränk"], f"{avg_drink.iloc[0]['Punkte']:.1f}")
         if len(avg_drink) > 1: m2.metric("🥈 Platz 2", avg_drink.iloc[1]["Getränk"], f"{avg_drink.iloc[1]['Punkte']:.1f}")
+        if len(avg_drink) > 2: m3.metric("🥉 Platz 3", avg_drink.iloc[2]["Getränk"], f"{avg_drink.iloc[2]['Punkte']:.1f}")
         if len(avg_drink) >= 1:
             shame_drink = avg_drink.iloc[-1]
             with m3: st.markdown(f"<div class='shame-box'>💀 Hall of Shame<br><b>{shame_drink['Getränk']}</b><br>{shame_drink['Punkte']:.1f} Pkt</div>", unsafe_allow_html=True)
