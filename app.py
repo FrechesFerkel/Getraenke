@@ -166,7 +166,12 @@ with col2:
                         else: st.info("Kein Bild")
                     
                     with c_radar:
-                        st.plotly_chart(create_radar_chart(r), use_container_width=True, config={'displayModeBar': False})
+                                st.plotly_chart(
+                                    create_radar_chart(r), 
+                                    use_container_width=True, 
+                                    config={'displayModeBar': False},
+                                    key=f"radar_{r.get('id', random.randint(0, 100000))}_{r['Tester']}"
+                                )
                     
                     with c_txt:
                         st.write(f"**{r['Tester']}** testete **{r['Getränk']}**")
