@@ -19,11 +19,10 @@ st.markdown("""
 st.title("🍻 Team Tasting Cloud")
 st.markdown("---")
 
-# Radar-Chart Hilfsfunktion (angepasst auf 2 Kategorien)
+# Radar-Chart Hilfsfunktion
 def create_radar_chart(row_data):
     categories = ['Geschmack', 'Design']
     values = [row_data.get('taste', 5), row_data.get('design', 5)]
-    
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
         r=values + [values[0]],
@@ -67,6 +66,30 @@ with st.sidebar:
             all_drinks = list(set([r["drink_aName"] for r in raw_data]))
             st.success(f"Das Schicksal sagt: \n**{random.choice(all_drinks)}**!")
 
+    # DOWNLOAD BEREICH
+    st.divider()
+    st.header("💾 Daten-Export")
+    raw_export_data = load_data()
+    if raw_export_data:
+        export_list = [{
+            "Datum": r.get("created_at", ""),
+            "Tester": r.get("Profiles", {}).get("name", "Unbekannt"),
+            "Getränk": r.get("drink_aName", "Unbenannt"),
+            "Gesamt-Rating": r.get("rating", 0),
+            "Geschmack": r.get("taste", 5),
+            "Design": r.get("design", 5),
+            "Fazit": r.get("remark", ""),
+            "Bild-URL": r.get("image_url", "")
+        } for r in raw_export_data]
+        export_df = pd.DataFrame(export_list)
+        csv = export_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Liste herunterladen",
+            data=csv,
+            file_name=f"tasting_export_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+
     st.divider()
     st.header("🔍 Fotowall Filter")
     raw_for_filter = load_data()
@@ -84,28 +107,16 @@ with col1:
             drink_selection = st.selectbox("Getränk wählen:", options=["-- Neu eintragen --"] + existing_drinks)
             new_drink_name = st.text_input("Oder Name tippen:")
             final_drink = new_drink_name.strip() if new_drink_name.strip() else (drink_selection if drink_selection != "-- Neu eintragen --" else None)
-            
             uploaded_file = st.file_uploader("Foto hochladen", type=["jpg", "jpeg", "png"])
-            
             st.write("**Bewertung (1-10):**")
             c_taste = st.slider("👅 Geschmack", 1, 10, 5)
             c_design = st.slider("🎨 Design/Label", 1, 10, 5)
-            
             rating = st.select_slider("Gesamtnote ⭐", options=list(range(1, 11)), value=5)
             comment = st.text_area("Fazit")
-            
             if st.form_submit_button("Speichern 🚀"):
                 if final_drink:
                     img_url = upload_image(uploaded_file) if uploaded_file else None
-                    save_entry(
-                        user_name=user, 
-                        drink_name=final_drink, 
-                        rating=rating, 
-                        remark=comment, 
-                        design=c_design, 
-                        taste=c_taste, 
-                        image_url=img_url
-                    )
+                    save_entry(user, final_drink, rating, comment, c_design, c_taste, image_url=img_url)
                     st.success("Gespeichert!")
                     st.rerun()
     else:
@@ -114,31 +125,17 @@ with col1:
 with col2:
     raw_data = load_data()
     if raw_data:
-        processed_list = [{
-            "id": r.get("id"),
-            "Tester": r.get("Profiles", {}).get("name", "Unbekannt"),
-            "Getränk": r.get("drink_aName", "Unbenannt"),
-            "Punkte": r.get("rating", 0),
-            "taste": r.get("taste", 5),
-            "design": r.get("design", 5),
-            "Fazit": r.get("remark", ""),
-            "Bild": r.get("image_url", None)
-        } for r in raw_data]
+        processed_list = [{"id": r.get("id"), "Tester": r.get("Profiles", {}).get("name", "Unbekannt"), "Getränk": r.get("drink_aName", "Unbenannt"), "Punkte": r.get("rating", 0), "taste": r.get("taste", 5), "design": r.get("design", 5), "Fazit": r.get("remark", ""), "Bild": r.get("image_url", None)} for r in raw_data]
         df = pd.DataFrame(processed_list)
-
-        # Metriken & Hall of Shame
         avg_drink = df.groupby("Getränk")["Punkte"].mean().sort_values(ascending=False).reset_index()
         m1, m2, m3 = st.columns(3)
         if len(avg_drink) > 0: m1.metric("🥇 Platz 1", avg_drink.iloc[0]["Getränk"], f"{avg_drink.iloc[0]['Punkte']:.1f}")
         if len(avg_drink) > 1: m2.metric("🥈 Platz 2", avg_drink.iloc[1]["Getränk"], f"{avg_drink.iloc[1]['Punkte']:.1f}")
         if len(avg_drink) >= 1:
             shame_drink = avg_drink.iloc[-1]
-            with m3:
-                st.markdown(f"<div class='shame-box'>💀 Hall of Shame<br><b>{shame_drink['Getränk']}</b><br>{shame_drink['Punkte']:.1f} Pkt</div>", unsafe_allow_html=True)
-
+            with m3: st.markdown(f"<div class='shame-box'>💀 Hall of Shame<br><b>{shame_drink['Getränk']}</b><br>{shame_drink['Punkte']:.1f} Pkt</div>", unsafe_allow_html=True)
         st.divider()
         t1, t2, t3 = st.tabs(["🎖️ Leaderboard", "📸 Fotowall", "📊 Stats"])
-        
         with t1:
             counts = df["Tester"].value_counts().reset_index()
             counts.columns = ["Name", "Tests"]
@@ -150,7 +147,6 @@ with col2:
                 return badge_str
             counts["Name"] = counts.apply(add_badges, axis=1)
             st.table(counts)
-        
         with t2:
             display_list = processed_list if filter_user == "Alle" else [r for r in processed_list if r["Tester"] == filter_user]
             for r in reversed(display_list):
@@ -159,14 +155,12 @@ with col2:
                     with c_img:
                         if r["Bild"]: st.image(r["Bild"], use_container_width=True)
                     with c_radar:
-                        # Eindeutiger Key fix gegen DuplicateID Fehler
                         st.plotly_chart(create_radar_chart(r), use_container_width=True, config={'displayModeBar': False}, key=f"radar_{r['id']}")
                     with c_txt:
                         st.write(f"**{r['Tester']}** testete **{r['Getränk']}**")
                         st.subheader(f"{r['Punkte']}/10 ⭐")
                         if r["Fazit"]: st.caption(f"💬 {r['Fazit']}")
                     st.divider()
-
         with t3:
             st.bar_chart(df.groupby("Getränk")["Punkte"].mean())
     else:
