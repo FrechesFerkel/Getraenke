@@ -45,8 +45,8 @@ def upload_image(file):
         return res.public_url
     return str(res)
 
-def save_entry(user_name, drink_name, rating, remark, design, taste, vibe, image_url=None):
-    """Speichert eine neue Bewertung inklusive Radar-Kriterien."""
+def save_entry(user_name, drink_name, rating, remark, design, taste, image_url=None):
+    """Speichert eine neue Bewertung (Vibe wurde entfernt)."""
     user_id = get_user_id(user_name)
     data = {
         "user_id": user_id,
@@ -55,7 +55,6 @@ def save_entry(user_name, drink_name, rating, remark, design, taste, vibe, image
         "remark": remark,
         "design": design,
         "taste": taste,
-        "vibe": vibe,
         "image_url": image_url
     }
     supabase.table("Ratings").insert(data).execute()

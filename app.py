@@ -19,11 +19,10 @@ st.markdown("""
 st.title("🍻 Team Tasting Cloud")
 st.markdown("---")
 
-# Radar-Chart Hilfsfunktion
+# Radar-Chart Hilfsfunktion (angepasst auf 2 Kategorien)
 def create_radar_chart(row_data):
-    categories = ['Geschmack', 'Design', 'Vibe']
-    # Werte aus der Zeile ziehen
-    values = [row_data.get('taste', 5), row_data.get('design', 5), row_data.get('vibe', 5)]
+    categories = ['Geschmack', 'Design']
+    values = [row_data.get('taste', 5), row_data.get('design', 5)]
     
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
@@ -41,8 +40,8 @@ def create_radar_chart(row_data):
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         showlegend=False,
-        height=250,
-        margin=dict(l=30, r=30, t=20, b=20)
+        height=220,
+        margin=dict(l=40, r=40, t=20, b=20)
     )
     return fig
 
@@ -88,7 +87,7 @@ with col1:
             
             uploaded_file = st.file_uploader("Foto hochladen", type=["jpg", "jpeg", "png"])
             
-            st.write("**Deep Analysis (1-10):**")
+            st.write("**Bewertung (1-10):**")
             c_taste = st.slider("👅 Geschmack", 1, 10, 5)
             c_design = st.slider("🎨 Design/Label", 1, 10, 5)
             
@@ -98,16 +97,25 @@ with col1:
             if st.form_submit_button("Speichern 🚀"):
                 if final_drink:
                     img_url = upload_image(uploaded_file) if uploaded_file else None
-                    save_entry(user, final_drink, rating, comment, c_design, c_taste,image_url=img_url)
+                    save_entry(
+                        user_name=user, 
+                        drink_name=final_drink, 
+                        rating=rating, 
+                        remark=comment, 
+                        design=c_design, 
+                        taste=c_taste, 
+                        image_url=img_url
+                    )
                     st.success("Gespeichert!")
                     st.rerun()
     else:
-        st.warning("👈 Namen eingeben, um zu starten.")
+        st.warning("👈 Namen eingeben.")
 
 with col2:
     raw_data = load_data()
     if raw_data:
         processed_list = [{
+            "id": r.get("id"),
             "Tester": r.get("Profiles", {}).get("name", "Unbekannt"),
             "Getränk": r.get("drink_aName", "Unbenannt"),
             "Punkte": r.get("rating", 0),
@@ -117,13 +125,6 @@ with col2:
             "Bild": r.get("image_url", None)
         } for r in raw_data]
         df = pd.DataFrame(processed_list)
-
-        # Sommelier-Check
-        avg_per_user = df.groupby("Tester")["Punkte"].mean()
-        if user in avg_per_user:
-            my_avg = avg_per_user[user]
-            status = "😇 Die Gute-Laune-Maschine" if my_avg > 8 else ("🧐 Der Mecker-Gourmet" if my_avg < 4 else "⚖️ Der faire Genießer")
-            st.info(f"**Dein Vibe:** {status} (Schnitt: {my_avg:.1f} Pkt)")
 
         # Metriken & Hall of Shame
         avg_drink = df.groupby("Getränk")["Punkte"].mean().sort_values(ascending=False).reset_index()
@@ -136,21 +137,17 @@ with col2:
                 st.markdown(f"<div class='shame-box'>💀 Hall of Shame<br><b>{shame_drink['Getränk']}</b><br>{shame_drink['Punkte']:.1f} Pkt</div>", unsafe_allow_html=True)
 
         st.divider()
-        t1, t2, t3 = st.tabs(["🎖️ Leaderboard", "📸 Fotowall", "📊 Deep Analysis"])
+        t1, t2, t3 = st.tabs(["🎖️ Leaderboard", "📸 Fotowall", "📊 Stats"])
         
         with t1:
-            st.write("### Wer rockt das Tasting?")
             counts = df["Tester"].value_counts().reset_index()
             counts.columns = ["Name", "Tests"]
-            
             def add_badges(row):
                 name = row["Name"]
                 badge_str = name
                 if row.name == 0: badge_str += " 👑"
                 if df[df["Tester"] == name]["Bild"].count() > 0: badge_str += " 📸"
-                if df[df["Tester"] == name]["Punkte"].max() == 10: badge_str += " 🔥"
                 return badge_str
-
             counts["Name"] = counts.apply(add_badges, axis=1)
             st.table(counts)
         
@@ -161,16 +158,9 @@ with col2:
                     c_img, c_radar, c_txt = st.columns([1.2, 1.2, 1.5])
                     with c_img:
                         if r["Bild"]: st.image(r["Bild"], use_container_width=True)
-                        else: st.info("Kein Bild")
-                    
                     with c_radar:
-                                st.plotly_chart(
-                                    create_radar_chart(r), 
-                                    use_container_width=True, 
-                                    config={'displayModeBar': False},
-                                    key=f"radar_{r.get('id', random.randint(0, 100000))}_{r['Tester']}"
-                                )
-                    
+                        # Eindeutiger Key fix gegen DuplicateID Fehler
+                        st.plotly_chart(create_radar_chart(r), use_container_width=True, config={'displayModeBar': False}, key=f"radar_{r['id']}")
                     with c_txt:
                         st.write(f"**{r['Tester']}** testete **{r['Getränk']}**")
                         st.subheader(f"{r['Punkte']}/10 ⭐")
@@ -178,7 +168,6 @@ with col2:
                     st.divider()
 
         with t3:
-            st.write("### Durchschnitt pro Getränk")
             st.bar_chart(df.groupby("Getränk")["Punkte"].mean())
     else:
         st.info("Noch keine Daten.")
