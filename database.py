@@ -46,7 +46,7 @@ def upload_image(file):
     return str(res)
 
 def save_entry(user_name, drink_name, rating, remark, design, taste, image_url=None):
-    """Speichert eine neue Bewertung (Vibe wurde entfernt)."""
+    """Speichert eine neue Bewertung."""
     user_id = get_user_id(user_name)
     data = {
         "user_id": user_id,
@@ -58,6 +58,17 @@ def save_entry(user_name, drink_name, rating, remark, design, taste, image_url=N
         "image_url": image_url
     }
     supabase.table("Ratings").insert(data).execute()
+
+def has_user_rated_drink(user_name, drink_name):
+    """PRÜFT AUF DOPPELTE BEWERTUNG (Das hat gefehlt!)."""
+    user_id = get_user_id(user_name)
+    result = supabase.table("Ratings")\
+        .select("id")\
+        .eq("user_id", user_id)\
+        .ilike("drink_aName", drink_name.strip())\
+        .execute()
+    
+    return len(result.data) > 0
 
 def load_data():
     """Lädt alle Bewertungen inklusive Profil-Namen."""
