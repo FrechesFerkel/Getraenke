@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import random
-from database import load_data, save_entry, get_unique_drinks, upload_image
+from database import load_data, save_entry, get_unique_drinks, upload_image, delete_last_entry
 
 # 1. Seiten-Konfiguration
 st.set_page_config(page_title="Tasting Cloud Pro", page_icon="🍻", layout="wide")
@@ -11,17 +11,26 @@ st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
     .stMetric { background-color: #1e1e1e; padding: 15px; border-radius: 10px; border: 1px solid #333; }
-    .shame-box { padding: 20px; border: 2px solid #ff4b4b; border-radius: 10px; background-color: #2a0000; color: white; text-align: center; }
+    .shame-box { padding: 10px; border: 2px solid #ff4b4b; border-radius: 10px; background-color: #2a0000; color: white; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🍻 Team Tasting Cloud")
 st.markdown("---")
 
-# 2. Sidebar mit Orakel & Filtern
+# 2. Sidebar
 with st.sidebar:
     st.header("👤 Profil")
     user = st.text_input("Dein Name", placeholder="z.B. Benjamin")
+    
+    if user:
+        st.divider()
+        if st.button("❌ Letzten Eintrag löschen"):
+            if delete_last_entry(user):
+                st.warning("Eintrag wurde entfernt!")
+                st.rerun()
+            else:
+                st.error("Kein Eintrag zum Löschen gefunden.")
     
     st.divider()
     st.header("🔮 Das Orakel")
@@ -31,10 +40,14 @@ with st.sidebar:
             all_drinks = list(set([r["drink_aName"] for r in raw_data]))
             recommendation = random.choice(all_drinks)
             st.success(f"Das Schicksal sagt: \n**{recommendation}**!")
+        else:
+            st.info("Noch keine Daten.")
 
     st.divider()
-    st.header("🔍 Filter für Fotowall")
-    filter_user = st.selectbox("Nur von Tester:", options=["Alle"] + sorted(list(set([r.get("Profiles", {}).get("name", "Unbekannt") for r in load_data()] if load_data() else []))))
+    st.header("🔍 Fotowall Filter")
+    raw_for_filter = load_data()
+    tester_list = sorted(list(set([r.get("Profiles", {}).get("name", "Unbekannt") for r in raw_for_filter]))) if raw_for_filter else []
+    filter_user = st.selectbox("Nur von Tester:", options=["Alle"] + tester_list)
 
 # 3. Hauptbereich
 col1, col2 = st.columns([1, 2], gap="large")
@@ -89,26 +102,22 @@ with col2:
         if len(avg_drink) > 0: m1.metric("🥇 Platz 1", avg_drink.iloc[0]["Getränk"], f"{avg_drink.iloc[0]['Punkte']:.1f}")
         if len(avg_drink) > 1: m2.metric("🥈 Platz 2", avg_drink.iloc[1]["Getränk"], f"{avg_drink.iloc[1]['Punkte']:.1f}")
         
-        # Die Hall of Shame (Letzter Platz)
-        if len(avg_drink) > 2:
+        if len(avg_drink) >= 1:
             shame_drink = avg_drink.iloc[-1]
             with m3:
-                st.markdown(f"""<div class='shame-box'>💀 Hall of Shame<br><b>{shame_drink['Getränk']}</b><br>{shame_drink['Punkte']:.1f} Pkt</div>""", unsafe_allow_html=True)
+                st.markdown(f"<div class='shame-box'>💀 Hall of Shame<br><b>{shame_drink['Getränk']}</b><br>{shame_drink['Punkte']:.1f} Pkt</div>", unsafe_allow_html=True)
 
         st.divider()
         t1, t2, t3 = st.tabs(["🎖️ Leaderboard", "📸 Fotowall", "📊 Alle Stats"])
         
         with t1:
-            st.write("### Wer rockt das Tasting?")
             counts = df["Tester"].value_counts().reset_index()
-            counts.columns = ["Name", "Tests"]
+            counts.columns = ["Name", "Tests"]; counts.index += 1
             st.table(counts)
         
         with t2:
-            # Filter-Logik
             display_list = processed_list if filter_user == "Alle" else [r for r in processed_list if r["Tester"] == filter_user]
-            
-            for r in display_list:
+            for r in reversed(display_list): # Neueste zuerst anzeigen
                 with st.container():
                     c_img, c_txt = st.columns([1, 2])
                     if r["Bild"]: c_img.image(r["Bild"], use_container_width=True)
@@ -118,7 +127,6 @@ with col2:
                     st.divider()
 
         with t3:
-            st.write("### Durchschnitt pro Marke")
             st.bar_chart(df.groupby("Getränk")["Punkte"].mean())
     else:
         st.info("Noch keine Daten.")
