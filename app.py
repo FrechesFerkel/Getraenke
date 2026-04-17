@@ -115,7 +115,7 @@ with col1:
             c_design = st.slider("🎨 Design", 1, 10, 5)
             c_price = st.slider("💰 Preis-Leistung", 1, 10, 5)
             
-            rating = st.select_slider("Gesamtnote ⭐", options=list(range(1, 11)), value=5)
+            rating = st.select_slider("⭐ Gesamtnote", options=list(range(1, 11)), value=5)
             comment = st.text_area("Fazit 💬")
             
             if st.form_submit_button("Speichern 🚀"):
