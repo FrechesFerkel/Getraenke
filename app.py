@@ -96,14 +96,24 @@ with col1:
             
             if st.form_submit_button("Speichern 🚀"):
                 if final_drink:
-                    # --- NEUE DOPPEL-CHECK LOGIK ---
-                    if has_user_rated_drink(user, final_drink):
-                        st.error(f"🛑 Stop! Du hast **{final_drink}** bereits bewertet. Probiere mal was Neues!")
+                    img_url = upload_image(uploaded_file) if uploaded_file else None
+                    
+                    action = save_entry(
+                        user_name=user, 
+                        drink_name=final_drink, 
+                        rating=rating, 
+                        remark=comment, 
+                        design=c_design, 
+                        taste=c_taste, 
+                        image_url=img_url
+                    )
+                    
+                    if action == "updated":
+                        st.info(f"🔄 Dein bestehendes Rating für **{final_drink}** wurde aktualisiert!")
                     else:
-                        img_url = upload_image(uploaded_file) if uploaded_file else None
-                        save_entry(user_name=user, drink_name=final_drink, rating=rating, remark=comment, design=c_design, taste=c_taste, image_url=img_url)
-                        st.success("Erfolgreich gespeichert!")
-                        st.rerun()
+                        st.success(f"✅ Neues Rating für **{final_drink}** gespeichert!")
+                    
+                    st.rerun()
                 else:
                     st.warning("Bitte gib einen Namen für das Getränk ein.")
     else:
