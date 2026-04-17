@@ -45,20 +45,23 @@ def upload_image(file):
         return res.public_url
     return str(res)
 
-def save_entry(user_name, drink_name, rating, remark, image_url=None):
-    """Speichert eine neue Bewertung."""
+def save_entry(user_name, drink_name, rating, remark, design, taste, vibe, image_url=None):
+    """Speichert eine neue Bewertung inklusive Radar-Kriterien."""
     user_id = get_user_id(user_name)
     data = {
         "user_id": user_id,
         "drink_aName": drink_name,
-        "rating": rating,
+        "rating": rating, 
         "remark": remark,
+        "design": design,
+        "taste": taste,
+        "vibe": vibe,
         "image_url": image_url
     }
     supabase.table("Ratings").insert(data).execute()
 
 def load_data():
-    """Lädt alle Bewertungen."""
+    """Lädt alle Bewertungen inklusive Profil-Namen."""
     result = supabase.table("Ratings").select("*, Profiles(name)").execute()
     return result.data
 
