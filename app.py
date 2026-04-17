@@ -6,19 +6,19 @@ from database import load_data, save_entry, get_unique_drinks, upload_image
 # 1. Seiten-Konfiguration
 st.set_page_config(page_title="Tasting Cloud Pro", page_icon="🍻", layout="wide")
 
-# Styling für Badges und Buttons
+# Styling
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
     .stMetric { background-color: #1e1e1e; padding: 15px; border-radius: 10px; border: 1px solid #333; }
-    .user-badge { padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; background: #444; color: #fff; }
+    .shame-box { padding: 20px; border: 2px solid #ff4b4b; border-radius: 10px; background-color: #2a0000; color: white; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🍻 Team Tasting Cloud")
 st.markdown("---")
 
-# 2. Sidebar mit Orakel
+# 2. Sidebar mit Orakel & Filtern
 with st.sidebar:
     st.header("👤 Profil")
     user = st.text_input("Dein Name", placeholder="z.B. Benjamin")
@@ -31,8 +31,10 @@ with st.sidebar:
             all_drinks = list(set([r["drink_aName"] for r in raw_data]))
             recommendation = random.choice(all_drinks)
             st.success(f"Das Schicksal sagt: \n**{recommendation}**!")
-        else:
-            st.info("Noch keine Daten für Empfehlungen.")
+
+    st.divider()
+    st.header("🔍 Filter für Fotowall")
+    filter_user = st.selectbox("Nur von Tester:", options=["Alle"] + sorted(list(set([r.get("Profiles", {}).get("name", "Unbekannt") for r in load_data()] if load_data() else []))))
 
 # 3. Hauptbereich
 col1, col2 = st.columns([1, 2], gap="large")
@@ -65,7 +67,6 @@ with col1:
 with col2:
     raw_data = load_data()
     if raw_data:
-        # Daten-Aufbereitung
         processed_list = [{
             "Tester": r.get("Profiles", {}).get("name", "Unbekannt"),
             "Getränk": r.get("drink_aName", "Unbenannt"),
@@ -75,23 +76,24 @@ with col2:
         } for r in raw_data]
         df = pd.DataFrame(processed_list)
 
-        # --- SEKTION: SOMMELIER-ANALYSE (NR. 1) ---
-        st.subheader("🧐 Sommelier-Check")
+        # Sommelier-Analyse
         avg_per_user = df.groupby("Tester")["Punkte"].mean()
-        
         if user in avg_per_user:
             my_avg = avg_per_user[user]
-            if my_avg > 8: status = "😇 Die Gute-Laune-Maschine (Sehr spendabel)"
-            elif my_avg < 4: status = "🧐 Der Mecker-Gourmet (Sehr streng)"
-            else: status = "⚖️ Der faire Genießer"
+            status = "😇 Die Gute-Laune-Maschine" if my_avg > 8 else ("🧐 Der Mecker-Gourmet" if my_avg < 4 else "⚖️ Der faire Genießer")
             st.info(f"**Dein Vibe:** {status} (Schnitt: {my_avg:.1f} Pkt)")
 
-        # Metriken (Top 3)
+        # Highlights & Hall of Shame
         avg_drink = df.groupby("Getränk")["Punkte"].mean().sort_values(ascending=False).reset_index()
         m1, m2, m3 = st.columns(3)
         if len(avg_drink) > 0: m1.metric("🥇 Platz 1", avg_drink.iloc[0]["Getränk"], f"{avg_drink.iloc[0]['Punkte']:.1f}")
         if len(avg_drink) > 1: m2.metric("🥈 Platz 2", avg_drink.iloc[1]["Getränk"], f"{avg_drink.iloc[1]['Punkte']:.1f}")
-        if len(avg_drink) > 2: m3.metric("🥉 Platz 3", avg_drink.iloc[2]["Getränk"], f"{avg_drink.iloc[2]['Punkte']:.1f}")
+        
+        # Die Hall of Shame (Letzter Platz)
+        if len(avg_drink) > 2:
+            shame_drink = avg_drink.iloc[-1]
+            with m3:
+                st.markdown(f"""<div class='shame-box'>💀 Hall of Shame<br><b>{shame_drink['Getränk']}</b><br>{shame_drink['Punkte']:.1f} Pkt</div>""", unsafe_allow_html=True)
 
         st.divider()
         t1, t2, t3 = st.tabs(["🎖️ Leaderboard", "📸 Fotowall", "📊 Alle Stats"])
@@ -100,20 +102,13 @@ with col2:
             st.write("### Wer rockt das Tasting?")
             counts = df["Tester"].value_counts().reset_index()
             counts.columns = ["Name", "Tests"]
-            
-            # Badges vergeben
-            def add_badges(row):
-                name = row["Name"]
-                badge_str = name
-                if row.name == 0: badge_str += " 👑" # Meiste Tests
-                if df[df["Tester"] == name]["Bild"].count() > 0: badge_str += " 📸" # Hat Bilder gemacht
-                return badge_str
-
-            counts["Name"] = counts.apply(add_badges, axis=1)
             st.table(counts)
         
         with t2:
-            for r in processed_list:
+            # Filter-Logik
+            display_list = processed_list if filter_user == "Alle" else [r for r in processed_list if r["Tester"] == filter_user]
+            
+            for r in display_list:
                 with st.container():
                     c_img, c_txt = st.columns([1, 2])
                     if r["Bild"]: c_img.image(r["Bild"], use_container_width=True)
@@ -123,6 +118,7 @@ with col2:
                     st.divider()
 
         with t3:
+            st.write("### Durchschnitt pro Marke")
             st.bar_chart(df.groupby("Getränk")["Punkte"].mean())
     else:
         st.info("Noch keine Daten.")
