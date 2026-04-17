@@ -91,7 +91,7 @@ with col1:
             st.write("**Deep Analysis (1-10):**")
             c_taste = st.slider("👅 Geschmack", 1, 10, 5)
             c_design = st.slider("🎨 Design/Label", 1, 10, 5)
-            rating = st.select_slider("Gesamtnote ⭐", options=list(range(1, 11)), value=5)
+            rating = st.select_slider("⭐ Gesamtnote", options=list(range(1, 11)), value=5)
             comment = st.text_area("Fazit")
             
             if st.form_submit_button("Speichern 🚀"):
