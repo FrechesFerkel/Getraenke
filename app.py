@@ -98,7 +98,7 @@ with col1:
             if st.form_submit_button("Speichern 🚀"):
                 if final_drink:
                     img_url = upload_image(uploaded_file) if uploaded_file else None
-                    save_entry(user, final_drink, rating, comment, c_design, c_taste, c_vibe, image_url=img_url)
+                    save_entry(user, final_drink, rating, comment, c_design, c_taste,image_url=img_url)
                     st.success("Gespeichert!")
                     st.rerun()
     else:
@@ -113,7 +113,6 @@ with col2:
             "Punkte": r.get("rating", 0),
             "taste": r.get("taste", 5),
             "design": r.get("design", 5),
-            "vibe": r.get("vibe", 5),
             "Fazit": r.get("remark", ""),
             "Bild": r.get("image_url", None)
         } for r in raw_data]
