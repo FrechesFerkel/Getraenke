@@ -19,8 +19,10 @@ st.markdown("""
 st.title("🍻 Team Tasting Cloud")
 st.markdown("---")
 
-# Radar-Chart Hilfsfunktion
+# --- HILFSFUNKTIONEN FÜR CHARTS ---
+
 def create_radar_chart(row_data):
+    """Einzel-Radar für die Fotowall."""
     categories = ['Geschmack', 'Design']
     values = [row_data.get('taste', 5), row_data.get('design', 5)]
     fig = go.Figure()
@@ -44,11 +46,50 @@ def create_radar_chart(row_data):
     )
     return fig
 
-# 2. Sidebar
+def create_comparison_radar(df, drink_a, drink_b):
+    """Doppel-Radar für den Duell-Modus."""
+    categories = ['Geschmack', 'Design']
+    # Durchschnittswerte berechnen
+    stats_a = df[df['Getränk'] == drink_a][['taste', 'design']].mean()
+    stats_b = df[df['Getränk'] == drink_b][['taste', 'design']].mean()
+    
+    fig = go.Figure()
+    # Herausforderer 1 (Rot)
+    fig.add_trace(go.Scatterpolar(
+        r=[stats_a['taste'], stats_a['design'], stats_a['taste']],
+        theta=categories + [categories[0]],
+        fill='toself',
+        name=drink_a,
+        line_color='#ff4b4b',
+        fillcolor='rgba(255, 75, 75, 0.2)'
+    ))
+    # Herausforderer 2 (Cyan)
+    fig.add_trace(go.Scatterpolar(
+        r=[stats_b['taste'], stats_b['design'], stats_b['taste']],
+        theta=categories + [categories[0]],
+        fill='toself',
+        name=drink_b,
+        line_color='#00f2ff',
+        fillcolor='rgba(0, 242, 255, 0.2)'
+    ))
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(visible=True, range=[0, 10], gridcolor="#444"),
+            angularaxis=dict(gridcolor="#444")
+        ),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=350,
+        margin=dict(l=50, r=50, t=40, b=40)
+    )
+    return fig
+
+# --- 2. SIDEBAR ---
 with st.sidebar:
     st.header("👤 Profil")
     user = st.text_input("Dein Name", placeholder="z.B. Benjamin")
     
+    # Feature: Lösch-Button
     if user:
         st.divider()
         if st.button("❌ Letzten Eintrag löschen"):
@@ -58,6 +99,7 @@ with st.sidebar:
             else:
                 st.error("Kein Eintrag gefunden.")
     
+    # Feature: Orakel
     st.divider()
     st.header("🔮 Das Orakel")
     if st.button("Was soll ich trinken?"):
@@ -66,7 +108,7 @@ with st.sidebar:
             all_drinks = list(set([r["drink_aName"] for r in raw_data]))
             st.success(f"Das Schicksal sagt: \n**{random.choice(all_drinks)}**!")
 
-    # DOWNLOAD BEREICH
+    # Feature: Download-Button
     st.divider()
     st.header("💾 Daten-Export")
     raw_export_data = load_data()
@@ -90,13 +132,14 @@ with st.sidebar:
             mime="text/csv"
         )
 
+    # Feature: Fotowall Filter
     st.divider()
     st.header("🔍 Fotowall Filter")
     raw_for_filter = load_data()
     tester_list = sorted(list(set([r.get("Profiles", {}).get("name", "Unbekannt") for r in raw_for_filter]))) if raw_for_filter else []
     filter_user = st.selectbox("Nur von Tester:", options=["Alle"] + tester_list)
 
-# 3. Hauptbereich
+# --- 3. HAUPTBEREICH ---
 col1, col2 = st.columns([1, 2], gap="large")
 
 with col1:
@@ -108,45 +151,82 @@ with col1:
             new_drink_name = st.text_input("Oder Name tippen:")
             final_drink = new_drink_name.strip() if new_drink_name.strip() else (drink_selection if drink_selection != "-- Neu eintragen --" else None)
             uploaded_file = st.file_uploader("Foto hochladen", type=["jpg", "jpeg", "png"])
-            st.write("**Bewertung (1-10):**")
+            
+            st.write("**Deep Analysis (1-10):**")
             c_taste = st.slider("👅 Geschmack", 1, 10, 5)
             c_design = st.slider("🎨 Design/Label", 1, 10, 5)
+            
             rating = st.select_slider("Gesamtnote ⭐", options=list(range(1, 11)), value=5)
             comment = st.text_area("Fazit")
+            
             if st.form_submit_button("Speichern 🚀"):
                 if final_drink:
                     img_url = upload_image(uploaded_file) if uploaded_file else None
-                    save_entry(user, final_drink, rating, comment, c_design, c_taste, image_url=img_url)
+                    save_entry(
+                        user_name=user, 
+                        drink_name=final_drink, 
+                        rating=rating, 
+                        remark=comment, 
+                        design=c_design, 
+                        taste=c_taste, 
+                        image_url=img_url
+                    )
                     st.success("Gespeichert!")
                     st.rerun()
     else:
-        st.warning("👈 Namen eingeben.")
+        st.warning("👈 Namen eingeben, um zu starten.")
 
 with col2:
     raw_data = load_data()
     if raw_data:
-        processed_list = [{"id": r.get("id"), "Tester": r.get("Profiles", {}).get("name", "Unbekannt"), "Getränk": r.get("drink_aName", "Unbenannt"), "Punkte": r.get("rating", 0), "taste": r.get("taste", 5), "design": r.get("design", 5), "Fazit": r.get("remark", ""), "Bild": r.get("image_url", None)} for r in raw_data]
+        processed_list = [{
+            "id": r.get("id"),
+            "Tester": r.get("Profiles", {}).get("name", "Unbekannt"),
+            "Getränk": r.get("drink_aName", "Unbenannt"),
+            "Punkte": r.get("rating", 0),
+            "taste": r.get("taste", 5),
+            "design": r.get("design", 5),
+            "Fazit": r.get("remark", ""),
+            "Bild": r.get("image_url", None)
+        } for r in raw_data]
         df = pd.DataFrame(processed_list)
+
+        # Feature: Sommelier-Check
+        avg_per_user = df.groupby("Tester")["Punkte"].mean()
+        if user in avg_per_user:
+            my_avg = avg_per_user[user]
+            status = "😇 Die Gute-Laune-Maschine" if my_avg > 8 else ("🧐 Der Mecker-Gourmet" if my_avg < 4 else "⚖️ Der faire Genießer")
+            st.info(f"**Dein Vibe:** {status} (Schnitt: {my_avg:.1f} Pkt)")
+
+        # Feature: Metriken & Hall of Shame
         avg_drink = df.groupby("Getränk")["Punkte"].mean().sort_values(ascending=False).reset_index()
         m1, m2, m3 = st.columns(3)
         if len(avg_drink) > 0: m1.metric("🥇 Platz 1", avg_drink.iloc[0]["Getränk"], f"{avg_drink.iloc[0]['Punkte']:.1f}")
         if len(avg_drink) > 1: m2.metric("🥈 Platz 2", avg_drink.iloc[1]["Getränk"], f"{avg_drink.iloc[1]['Punkte']:.1f}")
         if len(avg_drink) >= 1:
             shame_drink = avg_drink.iloc[-1]
-            with m3: st.markdown(f"<div class='shame-box'>💀 Hall of Shame<br><b>{shame_drink['Getränk']}</b><br>{shame_drink['Punkte']:.1f} Pkt</div>", unsafe_allow_html=True)
+            with m3:
+                st.markdown(f"<div class='shame-box'>💀 Hall of Shame<br><b>{shame_drink['Getränk']}</b><br>{shame_drink['Punkte']:.1f} Pkt</div>", unsafe_allow_html=True)
+
         st.divider()
-        t1, t2, t3 = st.tabs(["🎖️ Leaderboard", "📸 Fotowall", "📊 Stats"])
+        # Tabs mit Duell-Modus (⚔️)
+        t1, t2, t3, t4 = st.tabs(["🎖️ Leaderboard", "📸 Fotowall", "📊 Stats", "⚔️ Duell"])
+        
         with t1:
+            st.write("### Wer rockt das Tasting?")
             counts = df["Tester"].value_counts().reset_index()
             counts.columns = ["Name", "Tests"]
+            # Feature: Emojis/Badges
             def add_badges(row):
                 name = row["Name"]
                 badge_str = name
                 if row.name == 0: badge_str += " 👑"
                 if df[df["Tester"] == name]["Bild"].count() > 0: badge_str += " 📸"
+                if df[df["Tester"] == name]["Punkte"].max() == 10: badge_str += " 🔥"
                 return badge_str
             counts["Name"] = counts.apply(add_badges, axis=1)
             st.table(counts)
+        
         with t2:
             display_list = processed_list if filter_user == "Alle" else [r for r in processed_list if r["Tester"] == filter_user]
             for r in reversed(display_list):
@@ -161,8 +241,29 @@ with col2:
                         st.subheader(f"{r['Punkte']}/10 ⭐")
                         if r["Fazit"]: st.caption(f"💬 {r['Fazit']}")
                     st.divider()
+
         with t3:
+            st.write("### Durchschnitt pro Getränk")
             st.bar_chart(df.groupby("Getränk")["Punkte"].mean())
+
+        with t4:
+            st.write("### ⚔️ Direktes Duell")
+            all_drinks_list = sorted(df["Getränk"].unique())
+            if len(all_drinks_list) >= 2:
+                c_d1, c_d2 = st.columns(2)
+                drink_1 = c_d1.selectbox("Herausforderer 1", all_drinks_list, index=0, key="d1")
+                drink_2 = c_d2.selectbox("Herausforderer 2", all_drinks_list, index=1, key="d2")
+                
+                if drink_1 != drink_2:
+                    st.plotly_chart(create_comparison_radar(df, drink_1, drink_2), use_container_width=True)
+                    # Schneller Punkte-Check
+                    s1 = df[df['Getränk'] == drink_1]['Punkte'].mean()
+                    s2 = df[df['Getränk'] == drink_2]['Punkte'].mean()
+                    st.markdown(f"**Punkte-Check:** \n{drink_1}: `{s1:.1f} ⭐`  \n{drink_2}: `{s2:.1f} ⭐`")
+                else:
+                    st.warning("Bitte zwei verschiedene Getränke wählen!")
+            else:
+                st.info("Noch nicht genug verschiedene Getränke für ein Duell.")
     else:
         st.info("Noch keine Daten.")
 st.caption("Besser als Fab4Minds Frontend")
